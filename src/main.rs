@@ -1,47 +1,127 @@
-use std::io::{stdin, stdout, Read, Stdin, Write};
+use crossterm::{
+    execute,
+    style::{Attribute, Color, Print, SetAttribute, SetForegroundColor},
+};
+use git::{delete_branch, get_branches, Branch, HandlerError, Result};
+use git2::Repository;
+use std::io::{stdin, stdout, Bytes, Read, Stdin, Stdout, Write};
 
-use git2::{BranchType, Repository};
+mod git;
 
-#[derive(Debug, thiserror::Error)]
-enum HandlerError {
-    #[error(transparent)]
-    IoError(std::io::Error),
-
-    #[error(transparent)]
-    CrossTermError(#[from] crossterm::ErrorKind),
-    #[error(transparent)]
-    GitError(#[from] git2::Error),
+enum Action {
+    Show,
+    Keep,
+    Delete,
+    Quit,
+    Help,
+}
+impl TryFrom<char> for Action {
+    type Error = HandlerError;
+    fn try_from(value: char) -> Result<Self> {
+        match value {
+            'k' => Ok(Action::Keep),
+            'q' => Ok(Action::Quit),
+            's' => Ok(Action::Show),
+            'd' => Ok(Action::Delete),
+            _ => Ok(Action::Help),
+        }
+    }
 }
 
-fn main() -> Result<(), HandlerError> {
+fn main() -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
-
     let repo = Repository::open_from_env()?;
-    for branch in repo.branches(Some(BranchType::Local))? {
-        let (branch, _) = branch?;
-        let name = branch.name_bytes()?;
-    }
 
     let mut stdout = stdout();
     let mut stdin = stdin().bytes();
 
-    loop {
-        write!(stdout, "Type smthg > ")?;
-        stdout.flush()?;
-
-        let byte = match stdin.next() {
-            Some(byte) => byte?,
-            None => break,
-        };
-        let c = char::from(byte);
-        if c == 'q' {
-            break;
-        }
-
-        write!(stdout, "You typed '{}'\n\r", c)?;
-        stdout.flush()?;
-    }
+    let branches = get_branches(&repo)?;
+    communicate(&branches, &mut stdout, &mut stdin, &repo)?;
 
     crossterm::terminal::disable_raw_mode()?;
+    Ok(())
+}
+
+fn communicate(
+    branches: &Vec<Branch>,
+    stdout: &mut Stdout,
+    stdin: &mut Bytes<Stdin>,
+    repo: &Repository,
+) -> Result<()> {
+    for branch in branches {
+        execute!(
+            stdout,
+            SetForegroundColor(Color::Blue),
+            Print("\r\nBranch: "),
+            SetAttribute(Attribute::Bold),
+            Print(&branch.name),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Blue),
+            Print(" -> last_commit: "),
+            Print(branch.time),
+            Print("\r\n"),
+        )?;
+        loop {
+            execute!(
+                stdout,
+                SetAttribute(Attribute::Bold),
+                Print("(s,k,d,?,q) > "),
+                SetAttribute(Attribute::Reset),
+                SetForegroundColor(Color::Blue)
+            )?;
+            stdout.flush()?;
+
+            let byte = match stdin.next() {
+                Some(byte) => byte?,
+                None => break,
+            };
+            let c = char::from(byte);
+            let action = Action::try_from(c)?;
+            match action {
+                Action::Quit => {
+                    write!(stdout, "{}\r\n", c)?;
+                    return Ok(());
+                }
+
+                Action::Show => {
+                    write!(stdout, "{}\r\n", c)?;
+                    write!(
+                        stdout,
+                        "SHA1 : '{}' \r\nmessage: {}\r\n",
+                        branch.commit_id, branch.message
+                    )?;
+                    stdout.flush()?;
+                    continue;
+                }
+
+                Action::Keep => {
+                    write!(stdout, "{}\r\n", c)?;
+                    stdout.flush()?;
+                    break;
+                }
+
+                Action::Delete => {
+                    write!(stdout, "{}\r\n", c)?;
+                    stdout.flush()?;
+                    delete_branch(repo, branch)?;
+                    break;
+                }
+
+                Action::Help => {
+                    write!(stdout, "{}\r\n", c)?;
+                    execute!(stdout, SetForegroundColor(Color::DarkYellow))?;
+                    write!(stdout, "Commands details:\r\n")?;
+                    write!(stdout, "'s' => Show last commit details\r\n")?;
+                    write!(stdout, "'d' => Delete the banch\r\n")?;
+                    write!(stdout, "'k' => Keep the branch\r\n")?;
+                    write!(stdout, "'q' => Quit the program\r\n")?;
+                    write!(stdout, "'?' => Show this help\r\n")?;
+                    stdout.flush()?;
+                    execute!(stdout, SetForegroundColor(Color::Blue))?;
+                    continue;
+                }
+            }
+        }
+    }
     Ok(())
 }
