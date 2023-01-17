@@ -28,6 +28,21 @@ impl TryFrom<char> for Action {
     }
 }
 
+enum Validate {
+    Accept,
+    Refuse,
+}
+impl TryFrom<char> for Validate {
+    type Error = HandlerError;
+    fn try_from(value: char) -> Result<Self> {
+        match value {
+            'y' => Ok(Validate::Accept),
+            'n' => Ok(Validate::Refuse),
+            _ => Ok(Validate::Refuse),
+        }
+    }
+}
+
 fn main() -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
     let repo = Repository::open_from_env()?;
@@ -102,8 +117,41 @@ fn communicate(
 
                 Action::Delete => {
                     write!(stdout, "{}\r\n", c)?;
+                    write!(stdout, "Are you sure you want to ")?;
+                    execute!(
+                        stdout,
+                        SetForegroundColor(Color::Red),
+                        Print("delete"),
+                        SetForegroundColor(Color::Blue),
+                        Print(" branch : ")
+                    )?;
+                    execute!(
+                        stdout,
+                        SetAttribute(Attribute::Bold),
+                        Print(&branch.name),
+                        Print("\r\n(y,n) > "),
+                        SetAttribute(Attribute::Reset),
+                        SetForegroundColor(Color::Blue),
+                    )?;
                     stdout.flush()?;
-                    delete_branch(repo, branch)?;
+                    let byte = match stdin.next() {
+                        Some(byte) => byte?,
+                        None => break,
+                    };
+                    let c = char::from(byte);
+                    let validation = Validate::try_from(c)?;
+                    match validation {
+                        Validate::Accept => {
+                            write!(stdout, "{}\r\n", c)?;
+                            delete_branch(repo, branch)?;
+                            write!(stdout, "Branch succesfully deleted\r\n")?;
+                        }
+                        Validate::Refuse => {
+                            write!(stdout, "{}\r\n", c)?;
+                            write!(stdout, "Delete was aborted\r\n")?;
+                            continue;
+                        }
+                    }
                     break;
                 }
 
