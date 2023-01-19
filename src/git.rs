@@ -55,3 +55,8 @@ pub fn delete_branch(repo: &Repository, branch: &Branch) -> Result<()> {
     local_branch.delete()?;
     Ok(())
 }
+
+pub fn get_repo() -> Result<Repository> {
+    let repo = Repository::open_from_env()?;
+    Ok(repo)
+}
