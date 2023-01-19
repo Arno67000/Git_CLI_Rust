@@ -180,6 +180,7 @@ fn communicate(
                                 write!(stdout, "{}\r\n", c)?;
                                 delete_branch(repo, branch)?;
                                 write!(stdout, "Branch succesfully deleted\r\n")?;
+                                break;
                             }
                             Validate::Refuse => {
                                 write!(stdout, "{}\r\n", c)?;
