@@ -45,12 +45,30 @@ impl TryFrom<char> for Validate {
 
 fn main() -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
+
     let repo = Repository::open_from_env()?;
 
     let mut stdout = stdout();
     let mut stdin = stdin().bytes();
-
     let branches = get_branches(&repo)?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Blue),
+        Print(branches.len()),
+        Print(" branches found:")
+    )?;
+    let head = branches.iter().find(|b| b.is_head == true);
+    if let Some(branch) = head {
+        execute!(
+            stdout,
+            Print("\r\nHEAD is on branch: "),
+            SetAttribute(Attribute::Bold),
+            Print(&branch.name),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Blue),
+            Print("\r\n"),
+        )?;
+    }
     communicate(&branches, &mut stdout, &mut stdin, &repo)?;
 
     crossterm::terminal::disable_raw_mode()?;
@@ -74,8 +92,20 @@ fn communicate(
             SetForegroundColor(Color::Blue),
             Print(" -> last_commit: "),
             Print(branch.time),
-            Print("\r\n"),
         )?;
+        if branch.is_head == true {
+            execute!(
+                stdout,
+                SetForegroundColor(Color::Cyan),
+                SetAttribute(Attribute::Italic),
+                Print("  HEAD"),
+                SetAttribute(Attribute::Reset),
+                SetForegroundColor(Color::Blue),
+                Print("\r\n"),
+            )?;
+        } else {
+            execute!(stdout, Print("\r\n"))?;
+        }
         loop {
             execute!(
                 stdout,
