@@ -31,6 +31,7 @@ impl TryFrom<char> for Action {
 enum Validate {
     Accept,
     Refuse,
+    Invalid,
 }
 impl TryFrom<char> for Validate {
     type Error = HandlerError;
@@ -38,7 +39,7 @@ impl TryFrom<char> for Validate {
         match value {
             'y' => Ok(Validate::Accept),
             'n' => Ok(Validate::Refuse),
-            _ => Ok(Validate::Refuse),
+            _ => Ok(Validate::Invalid),
         }
     }
 }
@@ -153,33 +154,46 @@ fn communicate(
                         SetForegroundColor(Color::Red),
                         Print("delete"),
                         SetForegroundColor(Color::Blue),
-                        Print(" branch : ")
-                    )?;
-                    execute!(
-                        stdout,
+                        Print(" branch : "),
                         SetAttribute(Attribute::Bold),
                         Print(&branch.name),
-                        Print("\r\n(y,n) > "),
                         SetAttribute(Attribute::Reset),
                         SetForegroundColor(Color::Blue),
                     )?;
-                    stdout.flush()?;
-                    let byte = match stdin.next() {
-                        Some(byte) => byte?,
-                        None => break,
-                    };
-                    let c = char::from(byte);
-                    let validation = Validate::try_from(c)?;
-                    match validation {
-                        Validate::Accept => {
-                            write!(stdout, "{}\r\n", c)?;
-                            delete_branch(repo, branch)?;
-                            write!(stdout, "Branch succesfully deleted\r\n")?;
-                        }
-                        Validate::Refuse => {
-                            write!(stdout, "{}\r\n", c)?;
-                            write!(stdout, "Delete was aborted\r\n")?;
-                            continue;
+                    loop {
+                        execute!(
+                            stdout,
+                            SetAttribute(Attribute::Bold),
+                            Print("\r\n(y,n) > "),
+                            SetAttribute(Attribute::Reset),
+                            SetForegroundColor(Color::Blue),
+                        )?;
+                        stdout.flush()?;
+                        let byte = match stdin.next() {
+                            Some(byte) => byte?,
+                            None => break,
+                        };
+                        let c = char::from(byte);
+                        let validation = Validate::try_from(c)?;
+                        match validation {
+                            Validate::Accept => {
+                                write!(stdout, "{}\r\n", c)?;
+                                delete_branch(repo, branch)?;
+                                write!(stdout, "Branch succesfully deleted\r\n")?;
+                            }
+                            Validate::Refuse => {
+                                write!(stdout, "{}\r\n", c)?;
+                                write!(stdout, "Delete was aborted\r\n")?;
+                                break;
+                            }
+                            Validate::Invalid => {
+                                write!(stdout, "{}\r\n", c)?;
+                                execute!(stdout, SetForegroundColor(Color::DarkYellow))?;
+                                write!(stdout, "Please use 'y' for YES or 'n' for NO")?;
+                                stdout.flush()?;
+                                execute!(stdout, SetForegroundColor(Color::Blue))?;
+                                continue;
+                            }
                         }
                     }
                     break;
