@@ -20,6 +20,7 @@ pub struct Branch {
     pub commit_id: Oid,
     pub name: String,
     pub message: String,
+    pub is_head: bool,
 }
 
 pub fn get_branches(repo: &Repository) -> Result<Vec<Branch>> {
@@ -34,11 +35,13 @@ pub fn get_branches(repo: &Repository) -> Result<Vec<Branch>> {
             let time = commit.time();
             let offset = Duration::minutes(i64::from(time.offset_minutes()));
             let time = NaiveDateTime::from_timestamp_opt(time.seconds(), 0).unwrap() + offset;
+            let is_head = branch.is_head();
             Ok(Branch {
                 time,
                 commit_id,
                 name,
                 message,
+                is_head,
             })
         })
         .collect::<Result<Vec<Branch>>>()?;
