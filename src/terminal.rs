@@ -59,7 +59,7 @@ pub fn display_local_info(branches: &Vec<Branch>, stdout: &mut Stdout) -> Result
         Print(branches.len()),
         Print(" branches found:")
     )?;
-    let head = branches.iter().find(|b| b.is_head == true);
+    let head = branches.iter().find(|b| b.is_head);
     if let Some(branch) = head {
         execute!(
             stdout,
@@ -92,7 +92,7 @@ pub fn communicate(
             Print(" -> last_commit: "),
             Print(branch.time),
         )?;
-        if branch.is_head == true {
+        if branch.is_head {
             execute!(
                 stdout,
                 SetForegroundColor(Color::Cyan),
