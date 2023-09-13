@@ -6,11 +6,11 @@ pub enum HandlerError {
     // #[error(transparent)]
     // IoError(std::io::Error),
     #[error(transparent)]
-    CrossTermError(#[from] crossterm::ErrorKind),
+    CrossTerm(#[from] crossterm::ErrorKind),
     #[error(transparent)]
-    GitError(#[from] git2::Error),
+    Git(#[from] git2::Error),
     #[error(transparent)]
-    Utf8Error(#[from] std::string::FromUtf8Error),
+    Utf8(#[from] std::string::FromUtf8Error),
 }
 pub type Result<T, E = HandlerError> = std::result::Result<T, E>;
 
@@ -30,7 +30,7 @@ pub fn get_branches(repo: &Repository) -> Result<Vec<Branch>> {
             let (branch, _) = b?;
             let name = String::from_utf8(branch.name_bytes()?.to_vec())?;
             let commit = branch.get().peel_to_commit()?;
-            let commit_id = commit.id().clone();
+            let commit_id = commit.id();
             let message = String::from_utf8(commit.message_bytes().to_vec())?;
             let time = commit.time();
             let offset = Duration::minutes(i64::from(time.offset_minutes()));
